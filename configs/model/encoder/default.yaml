@@ -8,8 +8,8 @@ encoder_params:
   n_layers: 6
   kernel_size: 3
   p_dropout: 0.1
-  spk_emb_dim: 64
-  n_spks: 1
+  spk_emb_dim: 128
+  n_spks: 68
   prenet: true
 
 duration_predictor_params:

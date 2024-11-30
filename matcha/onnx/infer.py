@@ -48,7 +48,7 @@ def write_wavs(model, inputs, output_dir, external_vocoder=None):
         output_filename = output_dir.joinpath(f"output_{i + 1}.wav")
         audio = wav[:wav_length]
         print(f"Writing audio to {output_filename}")
-        sf.write(output_filename, audio, 22050, "PCM_24")
+        sf.write(output_filename, audio, 22050, "PCM_16")
 
     wav_secs = wav_lengths.sum() / 22050
     print(f"Inference seconds: {infer_secs}")

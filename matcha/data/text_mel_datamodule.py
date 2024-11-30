@@ -8,7 +8,7 @@ import torchaudio as ta
 from lightning import LightningDataModule
 from torch.utils.data.dataloader import DataLoader
 
-from matcha.text import text_to_sequence
+from matcha.text import text_to_sequence, text_to_sequence_aligned
 from matcha.utils.audio import mel_spectrogram
 from matcha.utils.model import fix_len_compatibility, normalize
 from matcha.utils.utils import intersperse
@@ -163,21 +163,22 @@ class TextMelDataset(torch.utils.data.Dataset):
 
     def get_datapoint(self, filepath_and_text):
         if self.n_spks > 1:
-            filepath, spk, text = (
+            filepath, spk, text, aligned = (
                 filepath_and_text[0],
                 int(filepath_and_text[1]),
                 filepath_and_text[2],
+                filepath_and_text[3],
             )
         else:
-            filepath, text = filepath_and_text[0], filepath_and_text[1]
+            filepath, text, aligned = filepath_and_text[0], filepath_and_text[1], filepath_and_text[2]
             spk = None
 
-        text, cleaned_text = self.get_text(text, add_blank=self.add_blank)
+        text, bert, cleaned_text = self.get_text(text, aligned, add_blank=self.add_blank)
         mel = self.get_mel(filepath)
 
         durations = self.get_durations(filepath, text) if self.load_durations else None
 
-        return {"x": text, "y": mel, "spk": spk, "filepath": filepath, "x_text": cleaned_text, "durations": durations}
+        return {"x": text, "y": mel, "spk": spk, "filepath": filepath, "x_text": cleaned_text, "durations": durations, "bert": bert}
 
     def get_durations(self, filepath, text):
         filepath = Path(filepath)
@@ -213,12 +214,15 @@ class TextMelDataset(torch.utils.data.Dataset):
         mel = normalize(mel, self.data_parameters["mel_mean"], self.data_parameters["mel_std"])
         return mel
 
-    def get_text(self, text, add_blank=True):
-        text_norm, cleaned_text = text_to_sequence(text, self.cleaners)
-        if self.add_blank:
-            text_norm = intersperse(text_norm, 0)
+    def get_text(self, text, aligned, add_blank=True):
+#        text_norm, cleaned_text = text_to_sequence(text, self.cleaners)
+        text_norm, bert = text_to_sequence_aligned(text, aligned)
+#        if self.add_blank:
+#            text_norm = intersperse(text_norm, 0)
         text_norm = torch.IntTensor(text_norm)
-        return text_norm, cleaned_text
+        bert = torch.stack(bert, dim=0).T
+
+        return text_norm, bert, text
 
     def __getitem__(self, index):
         datapoint = self.get_datapoint(self.filepaths_and_text[index])
@@ -242,6 +246,7 @@ class TextMelBatchCollate:
         y = torch.zeros((B, n_feats, y_max_length), dtype=torch.float32)
         x = torch.zeros((B, x_max_length), dtype=torch.long)
         durations = torch.zeros((B, x_max_length), dtype=torch.long)
+        bert = torch.zeros((B, 768, x_max_length), dtype=torch.float32)
 
         y_lengths, x_lengths = [], []
         spks = []
@@ -257,6 +262,8 @@ class TextMelBatchCollate:
             x_texts.append(item["x_text"])
             if item["durations"] is not None:
                 durations[i, : item["durations"].shape[-1]] = item["durations"]
+            bert_ = item["bert"]
+            bert[i, :, : bert_.size(1)] = bert_
 
         y_lengths = torch.tensor(y_lengths, dtype=torch.long)
         x_lengths = torch.tensor(x_lengths, dtype=torch.long)
@@ -271,4 +278,5 @@ class TextMelBatchCollate:
             "filepaths": filepaths,
             "x_texts": x_texts,
             "durations": durations if not torch.eq(durations, 0).all() else None,
+            "bert": bert,
         }

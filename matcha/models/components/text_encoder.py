@@ -81,7 +81,13 @@ class DurationPredictor(nn.Module):
         self.norm_2 = LayerNorm(filter_channels)
         self.proj = torch.nn.Conv1d(filter_channels, 1, 1)
 
+#        torch.set_printoptions(profile="full")
+
     def forward(self, x, x_mask):
+
+#        print (x.size(), x_mask.size())
+#        print (x, x_mask)
+
         x = self.conv_1(x * x_mask)
         x = torch.relu(x)
         x = self.norm_1(x)
@@ -346,6 +352,8 @@ class TextEncoder(nn.Module):
         self.emb = torch.nn.Embedding(n_vocab, self.n_channels)
         torch.nn.init.normal_(self.emb.weight, 0.0, self.n_channels**-0.5)
 
+        self.bert_proj = torch.nn.Conv1d(768, self.n_channels, 1)
+
         if encoder_params.prenet:
             self.prenet = ConvReluNorm(
                 self.n_channels,
@@ -375,7 +383,7 @@ class TextEncoder(nn.Module):
             duration_predictor_params.p_dropout,
         )
 
-    def forward(self, x, x_lengths, spks=None):
+    def forward(self, x, x_lengths, spks=None, bert=None):
         """Run forward pass to the transformer based encoder and duration predictor
 
         Args:
@@ -394,12 +402,17 @@ class TextEncoder(nn.Module):
             x_mask (torch.Tensor): mask for the text input
                 shape: (batch_size, 1, max_text_length)
         """
-        x = self.emb(x) * math.sqrt(self.n_channels)
+
+        bert_emb = self.bert_proj(bert).transpose(1, 2)
+
+        x = (self.emb(x) + bert_emb) * math.sqrt(self.n_channels)
+
         x = torch.transpose(x, 1, -1)
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.size(2)), 1).to(x.dtype)
 
         x = self.prenet(x, x_mask)
         if self.n_spks > 1:
+#            print (spks.unsqueeze(-1).repeat(1, 1, x.shape[-1]))
             x = torch.cat([x, spks.unsqueeze(-1).repeat(1, 1, x.shape[-1])], dim=1)
         x = self.encoder(x, x_mask)
         mu = self.proj_m(x) * x_mask

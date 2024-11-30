@@ -1,3 +1,7 @@
+import sys
+
+sys.path.insert(0, "/home/ubuntu/Matcha-TTS")
+
 from typing import Any, Dict, List, Optional, Tuple
 
 import hydra
