@@ -134,6 +134,13 @@ def intersperse(lst, item):
     result[0::2] = lst
     return result
 
+def intersperse_bert(lst):
+    result = []
+    result.append(lst[0])
+    for i in range(1, len(lst)):
+        result.append(lst[i])
+        result.append(lst[i])
+    return result
 
 def save_figure_to_numpy(fig):
     data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep="")

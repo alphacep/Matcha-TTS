@@ -15,7 +15,7 @@ from matcha.hifigan.env import AttrDict
 from matcha.hifigan.models import Generator as HiFiGAN
 from matcha.models.matcha_tts import MatchaTTS
 from matcha.text import sequence_to_text, text_to_sequence
-from matcha.utils.utils import assert_model_downloaded, get_user_data_dir, intersperse
+from matcha.utils.utils import assert_model_downloaded, get_user_data_dir, intersperse, intersperse_bert
 
 MATCHA_URLS = {
     "matcha_ljspeech": "https://github.com/shivammehta25/Matcha-TTS-checkpoints/releases/download/v1.0/matcha_ljspeech.ckpt",
@@ -50,16 +50,16 @@ def plot_spectrogram_to_numpy(spectrogram, filename):
 
 def process_text(i: int, text: str, device: torch.device):
     print(f"[{i}] - Input text: {text}")
-    x = torch.tensor(
-        intersperse(text_to_sequence(text, ["english_cleaners2"])[0], 0),
-        dtype=torch.long,
-        device=device,
-    )[None]
+    x, bert = text_to_sequence(text, [])
+    x = intersperse(x, 0)
+    bert = intersperse_bert(bert)
+    x = torch.tensor(x, dtype=torch.long, device=device).unsqueeze(0)
+    bert = torch.stack(bert, dim=0).T.unsqueeze(0).to(device)
     x_lengths = torch.tensor([x.shape[-1]], dtype=torch.long, device=device)
     x_phones = sequence_to_text(x.squeeze(0).tolist())
     print(f"[{i}] - Phonetised text: {x_phones}")
 
-    return {"x_orig": text, "x": x, "x_lengths": x_lengths, "x_phones": x_phones}
+    return {"x_orig": text, "x": x, "x_lengths": x_lengths, "x_phones": x_phones, "bert" : bert}
 
 
 def get_texts(args):
@@ -133,12 +133,12 @@ def load_matcha(model_name, checkpoint_path, device):
     return model
 
 
-def to_waveform(mel, vocoder, denoiser=None, denoiser_strength=0.00025):
+def to_waveform(mel, vocoder, denoiser=None):
+    print ("!!!!!", mel.size())
 #    audio = vocoder(mel).clamp(-1, 1)
     audio = vocoder.decode(mel).clamp(-1, 1)
-
     if denoiser is not None:
-        audio = denoiser(audio.squeeze(), strength=denoiser_strength).cpu().squeeze()
+        audio = denoiser(audio.squeeze(), strength=0.00025).cpu().squeeze()
 
     return audio.cpu().squeeze()
 
@@ -148,7 +148,6 @@ def save_to_folder(filename: str, output: dict, folder: str):
     folder.mkdir(exist_ok=True, parents=True)
 #    plot_spectrogram_to_numpy(np.array(output["mel"].squeeze().float().cpu()), f"{filename}.png")
 #    np.save(folder / f"{filename}", output["mel"].cpu().numpy())
-#    sf.write(folder / f"{filename}.wav", output["waveform"], 44100, "PCM_16")
     sf.write(folder / f"{filename}.wav", output["waveform"], 22050, "PCM_16")
     return folder.resolve() / f"{filename}.wav"
 
@@ -305,10 +304,11 @@ def cli():
     texts = get_texts(args)
 
     spk = torch.tensor([args.spk], device=device, dtype=torch.long) if args.spk is not None else None
-    if len(texts) == 1 or not args.batched:
-        unbatched_synthesis(args, device, model, vocoder, denoiser, texts, spk)
-    else:
-        batched_synthesis(args, device, model, vocoder, denoiser, texts, spk)
+#    if len(texts) == 1 or not args.batched:
+#        unbatched_synthesis(args, device, model, vocoder, denoiser, texts, spk)
+#    else:
+#        batched_synthesis(args, device, model, vocoder, denoiser, texts, spk)
+    unbatched_synthesis(args, device, model, vocoder, denoiser, texts, spk)
 
 
 class BatchedSynthesisDataset(torch.utils.data.Dataset):
@@ -397,9 +397,10 @@ def unbatched_synthesis(args, device, model, vocoder, denoiser, texts, spk):
             n_timesteps=args.steps,
             temperature=args.temperature,
             spks=spk,
+            bert=text_processed["bert"],
             length_scale=args.speaking_rate,
         )
-        output["waveform"] = to_waveform(output["mel"], vocoder, denoiser, args.denoiser_strength)
+        output["waveform"] = to_waveform(output["mel"], vocoder, denoiser)
         # RTF with HiFiGAN
         t = (dt.datetime.now() - start_t).total_seconds()
         rtf_w = t * 22050 / (output["waveform"].shape[-1])

@@ -353,6 +353,8 @@ class TextEncoder(nn.Module):
         torch.nn.init.normal_(self.emb.weight, 0.0, self.n_channels**-0.5)
 
         self.bert_proj = torch.nn.Conv1d(768, self.n_channels, 1)
+#        self.bert_emb = torch.nn.Embedding(768, self.n_channels)
+#        torch.nn.init.normal_(self.bert_emb.weight, 0.0, self.n_channels**-0.5)
 
         if encoder_params.prenet:
             self.prenet = ConvReluNorm(
@@ -403,14 +405,22 @@ class TextEncoder(nn.Module):
                 shape: (batch_size, 1, max_text_length)
         """
 
-        bert_emb = self.bert_proj(bert).transpose(1, 2)
 
-        x = (self.emb(x) + bert_emb) * math.sqrt(self.n_channels)
+        x = self.emb(x) * math.sqrt(self.n_channels)
+#        print (x)
 
         x = torch.transpose(x, 1, -1)
         x_mask = torch.unsqueeze(sequence_mask(x_lengths, x.size(2)), 1).to(x.dtype)
 
         x = self.prenet(x, x_mask)
+
+        bert_emb = self.bert_proj(bert)
+
+#        print (f"x {x.size()} x_mask {x_mask.size()} bert {bert.size()} bert_emb {bert_emb.size()}")
+
+#        bert_emb = self.bert_emb(bert)
+        x = (x + bert_emb) / 2  # We can also cat bert like speakers
+
         if self.n_spks > 1:
 #            print (spks.unsqueeze(-1).repeat(1, 1, x.shape[-1]))
             x = torch.cat([x, spks.unsqueeze(-1).repeat(1, 1, x.shape[-1])], dim=1)

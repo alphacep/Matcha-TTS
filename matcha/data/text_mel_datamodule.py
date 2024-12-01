@@ -11,7 +11,7 @@ from torch.utils.data.dataloader import DataLoader
 from matcha.text import text_to_sequence, text_to_sequence_aligned
 from matcha.utils.audio import mel_spectrogram
 from matcha.utils.model import fix_len_compatibility, normalize
-from matcha.utils.utils import intersperse
+from matcha.utils.utils import intersperse, intersperse_bert
 
 
 def parse_filelist(filelist_path, split_char="|"):
@@ -217,9 +217,11 @@ class TextMelDataset(torch.utils.data.Dataset):
     def get_text(self, text, aligned, add_blank=True):
 #        text_norm, cleaned_text = text_to_sequence(text, self.cleaners)
         text_norm, bert = text_to_sequence_aligned(text, aligned)
-#        if self.add_blank:
-#            text_norm = intersperse(text_norm, 0)
+        if self.add_blank:
+            text_norm = intersperse(text_norm, 0)
         text_norm = torch.IntTensor(text_norm)
+        if self.add_blank:
+            bert = intersperse_bert(bert)
         bert = torch.stack(bert, dim=0).T
 
         return text_norm, bert, text

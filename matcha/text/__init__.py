@@ -42,24 +42,6 @@ from transformers import BertModel, BertTokenizer
 model = BertModel.from_pretrained("rubert-base")
 tokenizer = BertTokenizer.from_pretrained("rubert-base")
 
-pattern = "([,.?!;:\"() ])"
-def text_to_sequence(text, cleaners_names):
-
-    bert_embs = []
-    phonemes = ["^"]
-    for word in re.split(pattern, text.lower()):
-        if word == "":
-            continue
-        if re.match(pattern, word) or word == '-':
-            phonemes.append(word)
-        elif word in wdic:
-            phonemes.extend(wdic[word])
-        else:
-            phonemes.extend(convert(word).split())
-    phonemes.append("$")
-
-    sequence = [_symbol_to_id[symbol] for symbol in phonemes]
-    return sequence, text
 
 def get_bert_embeddings(text):
     with torch.no_grad():
@@ -77,6 +59,35 @@ def get_bert_embeddings(text):
         selected.append(len(text_inputs) + 1)
         res = res[selected]
         return res
+
+pattern = "([,.?!;:\"() ])"
+def text_to_sequence(text, cleaners_names):
+    embeddings = get_bert_embeddings(text)
+
+    phone_embeddings = [embeddings[0]]
+    phonemes = ["^"]
+    word_index = 1
+    for word in re.split(pattern, text.lower()):
+        if word == "":
+            continue
+        if re.match(pattern, word) or word == '-':
+            phonemes.append(word)
+            phone_embeddings.append(embeddings[word_index])
+        elif word in wdic:
+            for p in wdic[word]:
+                phonemes.append(p)
+                phone_embeddings.append(embeddings[word_index])
+        else:
+            for p in convert(word).split():
+                phonemes.append(p)
+                phone_embeddings.append(embeddings[word_index])
+        if word != " ":
+            word_index = word_index + 1
+    phonemes.append("$")
+    phone_embeddings.append(embeddings[-1])
+
+    sequence = [_symbol_to_id[symbol] for symbol in phonemes]
+    return sequence, phone_embeddings
 
 def text_to_sequence_aligned(orig_text, text):
     '''Converts a string of text to a sequence of IDs corresponding to the symbols in the text.
