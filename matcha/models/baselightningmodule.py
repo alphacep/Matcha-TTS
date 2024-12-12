@@ -115,6 +115,16 @@ class BaseLightningClass(LightningModule, ABC):
         )
 
         total_loss = sum(loss_dict.values())
+
+        print ("Global step", self.global_step)
+        print ("Batch", batch["filepaths"], batch["x_texts"])
+        print ("Total loss", total_loss)
+        print ("Losses", loss_dict)
+
+        lightning_optimizer = self.optimizers()
+        for param_group in lightning_optimizer.optimizer.param_groups:
+             print("LR", param_group['lr'])
+
         self.log(
             "loss/train",
             total_loss,

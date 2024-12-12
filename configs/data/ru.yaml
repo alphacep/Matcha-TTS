@@ -1,0 +1,14 @@
+defaults:
+  - ljspeech
+  - _self_
+
+_target_: matcha.data.text_mel_datamodule.TextMelDataModule
+name: ru
+train_filelist_path: db/metadata-phones-ids.csv.train
+valid_filelist_path: db/metadata-phones-ids.csv.dev
+batch_size: 8
+add_blank: True
+n_spks: 68
+data_statistics:
+  mel_mean: -5.819652557373047
+  mel_std: 2.4651663303375244

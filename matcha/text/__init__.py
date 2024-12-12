@@ -39,18 +39,19 @@ from .ru_dictionary import convert
 import torch
 from transformers import BertModel, BertTokenizer
 
-model = BertModel.from_pretrained("rubert-base")
+model = BertModel.from_pretrained("rubert-base").to('cuda')
 tokenizer = BertTokenizer.from_pretrained("rubert-base")
 
 
 def get_bert_embeddings(text):
     with torch.no_grad():
+        text = text.replace("+", "")
         text_inputs = tokenizer.tokenize(text)
 #        print (text_inputs)
-        inputs = tokenizer(text, return_tensors="pt")
+        inputs = tokenizer(text, return_tensors="pt").to('cuda')
 
         res = model(**inputs, output_hidden_states=True)
-        res = torch.cat(res["hidden_states"][-3:-2], -1).squeeze(0)
+        res = torch.cat(res["hidden_states"][-3:-2], -1).squeeze(0).cpu()
 
         selected = [0]
         for i, t in enumerate(text_inputs):
@@ -92,6 +93,7 @@ def text_to_sequence(text, cleaners_names):
 def text_to_sequence_aligned(orig_text, text):
     '''Converts a string of text to a sequence of IDs corresponding to the symbols in the text.
     '''
+    print ("!!!!", orig_text, text)
     embeddings = get_bert_embeddings(orig_text)
 
     phone_embeddings = [embeddings[0]]

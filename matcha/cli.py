@@ -20,7 +20,7 @@ from matcha.utils.utils import assert_model_downloaded, get_user_data_dir, inter
 MATCHA_URLS = {
     "matcha_ljspeech": "https://github.com/shivammehta25/Matcha-TTS-checkpoints/releases/download/v1.0/matcha_ljspeech.ckpt",
     "matcha_vctk": "https://github.com/shivammehta25/Matcha-TTS-checkpoints/releases/download/v1.0/matcha_vctk.ckpt",
-    "matcha_ru": "file:/home/ubuntu/Matcha-TTS/last-ru.ckpt",
+    "matcha_ru": "file:/home/shmyrev/kaldi/egs/ac/ru-tts/Matcha-TTS-test/last.ckpt",
 }
 
 VOCODER_URLS = {
@@ -31,7 +31,7 @@ VOCODER_URLS = {
 
 MULTISPEAKER_MODEL = {
     "matcha_vctk": {"vocoder": "hifigan_univ_v1", "speaking_rate": 0.85, "spk": 0, "spk_range": (0, 107)},
-    "matcha_ru": {"vocoder": "hifigan_univ_v1", "speaking_rate": 0.9, "spk": 0, "spk_range": (0, 68)}
+    "matcha_ru": {"vocoder": "hifigan_univ_v1", "speaking_rate": 1.0, "spk": 0, "spk_range": (0, 68)}
 }
 
 SINGLESPEAKER_MODEL = {"matcha_ljspeech": {"vocoder": "hifigan_T2_v1", "speaking_rate": 0.95, "spk": None}}
@@ -264,8 +264,8 @@ def cli():
     parser.add_argument(
         "--speaking_rate",
         type=float,
-        default=0.9,
-        help="change the speaking rate, a higher value means slower speaking rate (default: 0.9)",
+        default=1.0,
+        help="change the speaking rate, a higher value means slower speaking rate (default: 1.0)",
     )
     parser.add_argument("--steps", type=int, default=10, help="Number of ODE steps  (default: 10)")
     parser.add_argument("--cpu", action="store_true", help="Use CPU for inference (default: use GPU if available)")
@@ -358,7 +358,7 @@ def batched_synthesis(args, device, model, vocoder, denoiser, texts, spk):
             length_scale=args.speaking_rate,
         )
 
-        output["waveform"] = to_waveform(output["mel"], vocoder, denoiser, args.denoiser_strength)
+        output["waveform"] = to_waveform(output["mel"], vocoder, denoiser)
         t = (dt.datetime.now() - start_t).total_seconds()
         rtf_w = t * 22050 / (output["waveform"].shape[-1])
         print(f"[🍵-Batch: {i}] Matcha-TTS RTF: {output['rtf']:.4f}")
